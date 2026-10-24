@@ -483,6 +483,7 @@ function WatchBandPicker({
 export default function App() {
   const ui = useSyncExternalStore(watcherStore.subscribe, watcherStore.getSnapshot);
   const [clockMs, setClockMs] = useState(() => Date.now());
+  const [currentCycle, setCurrentCycle] = useState<number | null>(null);
   const [trialEveryCycles, setTrialEveryCycles] = useState<number>(() => {
     try {
       const saved = Number(window.localStorage.getItem("trialEveryCycles"));
@@ -504,8 +505,13 @@ export default function App() {
     let active = true;
     let unlisten: (() => void) | undefined;
     void listen<WatcherEvent>("watcher://event", ({ payload }) => {
+      if (payload.type === "cycleStarted") {
+        setCurrentCycle(payload.cycle);
+        return;
+      }
       if (payload.type !== "cycleComplete") return;
       const cycle = payload.cycle;
+      setCurrentCycle(cycle);
       if (cycle > 0 && cycle % trialEveryCyclesRef.current === 0 && lastAutoTrialCycle.current !== cycle) {
         lastAutoTrialCycle.current = cycle;
         void testCheckout();
@@ -817,7 +823,7 @@ export default function App() {
                   aria-hidden="true"
                 />
                 <span className="hidden text-xs text-muted-foreground sm:inline">监控状态</span>
-                <span className="text-sm font-medium">{ui.running ? browserFailure !== null ? browserRunningLabel : runningLabel : "已暂停"}</span>
+                <span className="text-sm font-medium">{ui.running ? browserFailure !== null ? browserRunningLabel : currentCycle !== null ? `第 ${currentCycle} 轮 · ${runningLabel}` : runningLabel : "已暂停"}</span>
               </div>
               {ui.running && ui.cooling && (
                 <Button
