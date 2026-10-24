@@ -1208,7 +1208,7 @@ export default function App() {
                     <Input
                       id="interval"
                       type="number"
-                      min={5}
+                      min={1}
                       className="control-surface select-text pr-12 tabular-nums"
                       value={intervalValue}
                       onChange={(event) => setIntervalDraft(event.target.valueAsNumber)}
