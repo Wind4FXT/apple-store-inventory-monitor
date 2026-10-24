@@ -181,13 +181,16 @@ jobs:
           set -eu
           if [ -n "${SIGNING_KEY:-}" ]; then
             echo "sign=true" >> "$GITHUB_OUTPUT"
-            echo "已配置签名密钥，将产出带签名的更新包与 latest.json。"
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "已配置签名密钥，将生成带签名的更新包。"
           elif [ "$RUNNER_OS" = "macOS" ]; then
-            echo "::error::macOS 发布既需要更新签名密钥，也必须保留应用包的 ad-hoc 签名；禁止使用 --no-sign 降级。"
-            exit 1
+            echo "sign=false" >> "$GITHUB_OUTPUT"
+            echo 'args=--config '\''{"bundle":{"createUpdaterArtifacts":false}}'\''' >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置更新签名密钥，macOS 本次仅生成安装包，不生成自动更新归档。"
           else
             echo "sign=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::未配置 TAURI_SIGNING_PRIVATE_KEY，本次产出未签名安装包，且不会生成 latest.json，应用内自动更新在这个版本上不可用。补配仓库 Secret 后重跑本流水线即可。"
+            echo "args=--no-sign" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置更新签名密钥，本次安装包不支持应用内自动更新。"
           fi
 
       - name: 构建、打包并发布
@@ -239,7 +242,7 @@ jobs:
           # 只是白烧十几分钟。latest.json 的上传冲突 action 内部本来就自带一次重试。
           retryAttempts: 0
 
-          args: ${{ steps.signing.outputs.sign == 'false' && '--no-sign' || '' }}
+          args: ${{ steps.signing.outputs.args }}
 
           # 四个作业传的是同一段文字，后跑完的作业会用它覆盖 Release 说明，
           # 内容一致所以结果是幂等的。改这里记得别引入 ${{ }}，会被当成表达式求值。
@@ -364,7 +367,6 @@ jobs:
           test -n "$dmg_path"
           mount_path="$(mktemp -d)"
           archive_path="$(find target/release/bundle/macos -maxdepth 1 -name '*.app.tar.gz' -print -quit)"
-          test -n "$archive_path"
           archive_dir="$(mktemp -d)"
           cleanup() {
             hdiutil detach "$mount_path" >/dev/null 2>&1 || true
@@ -375,7 +377,11 @@ jobs:
           hdiutil attach -readonly -nobrowse -mountpoint "$mount_path" "$dmg_path" >/dev/null
           verify_app "$mount_path/果到雷达.app"
 
-          tar -xzf "$archive_path" -C "$archive_dir"
-          archived_app="$(find "$archive_dir" -maxdepth 1 -name '*.app' -print -quit)"
-          test -n "$archived_app"
-          verify_app "$archived_app"
+          if [ -n "$archive_path" ]; then
+            tar -xzf "$archive_path" -C "$archive_dir"
+            archived_app="$(find "$archive_dir" -maxdepth 1 -name '*.app' -print -quit)"
+            test -n "$archived_app"
+            verify_app "$archived_app"
+          else
+            echo "未生成自动更新归档，已跳过归档验证；DMG 内的应用仍须通过 ad-hoc 签名验证。"
+          fi
