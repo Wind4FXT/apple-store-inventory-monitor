@@ -481,6 +481,7 @@ function WatchBandPicker({
 export default function App() {
   const ui = useSyncExternalStore(watcherStore.subscribe, watcherStore.getSnapshot);
   const [clockMs, setClockMs] = useState(() => Date.now());
+  const [nextTrialAtMs, setNextTrialAtMs] = useState(() => Date.now() + 15 * 60 * 1000);
 
   useEffect(() => {
     void connect();
@@ -488,7 +489,9 @@ export default function App() {
 
   // 程序运行期间每 15 分钟自动试跑一次；只调用安全试跑，不会提交订单。
   useEffect(() => {
+    setNextTrialAtMs(Date.now() + 15 * 60 * 1000);
     const timer = window.setInterval(() => {
+      setNextTrialAtMs(Date.now() + 15 * 60 * 1000);
       void testCheckout();
     }, 15 * 60 * 1000);
 
@@ -496,11 +499,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!ui.running) return;
-    setClockMs(Date.now());
     const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [ui.running]);
+  }, []);
 
   const [storeNumbers, setStoreNumbers] = useState<string[]>([]);
   const [partNumbers, setPartNumbers] = useState<string[]>([]);
@@ -591,6 +592,8 @@ export default function App() {
   const secondsUntilNextCheck = ui.nextCheckAtMs
     ? Math.max(0, Math.ceil((ui.nextCheckAtMs - clockMs) / 1_000))
     : null;
+  const trialSecondsLeft = Math.max(0, Math.ceil((nextTrialAtMs - clockMs) / 1_000));
+  const trialCountdown = `${String(Math.floor(trialSecondsLeft / 60)).padStart(2, "0")}:${String(trialSecondsLeft % 60).padStart(2, "0")}`;
   const runningLabel =
     secondsUntilNextCheck === null || secondsUntilNextCheck === 0
       ? `查询中 · 完成后倒计时 ${ui.settings.intervalSeconds} 秒`
@@ -795,6 +798,7 @@ export default function App() {
                 />
                 <span className="hidden text-xs text-muted-foreground sm:inline">监控状态</span>
                 <span className="text-sm font-medium">{ui.running ? browserFailure !== null ? browserRunningLabel : runningLabel : "已暂停"}</span>
+                <span className="text-xs text-muted-foreground">试跑倒计时 {trialCountdown}</span>
               </div>
               {ui.running && ui.cooling && (
                 <Button
