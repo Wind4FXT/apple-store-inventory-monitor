@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import packageInfo from "../package.json";
+import { listen } from "@tauri-apps/api/event";
 import {
   Activity,
   AlertTriangle,
@@ -110,6 +111,7 @@ import {
   type Target,
   type WatchBandChoice,
   type WatchBandSize,
+  type WatcherEvent,
   targetKey,
 } from "@/lib/types";
 
@@ -481,21 +483,41 @@ function WatchBandPicker({
 export default function App() {
   const ui = useSyncExternalStore(watcherStore.subscribe, watcherStore.getSnapshot);
   const [clockMs, setClockMs] = useState(() => Date.now());
-  const [nextTrialAtMs, setNextTrialAtMs] = useState(() => Date.now() + 15 * 60 * 1000);
+  const [trialEveryCycles, setTrialEveryCycles] = useState<number>(() => {
+    try {
+      const saved = Number(window.localStorage.getItem("trialEveryCycles"));
+      return Number.isSafeInteger(saved) && saved > 0 ? saved : 100;
+    } catch {
+      return 100;
+    }
+  });
+  const trialEveryCyclesRef = useRef(trialEveryCycles);
+  trialEveryCyclesRef.current = trialEveryCycles;
+  const lastAutoTrialCycle = useRef<number | null>(null);
 
   useEffect(() => {
     void connect();
   }, []);
 
-  // 程序运行期间每 15 分钟自动试跑一次；只调用安全试跑，不会提交订单。
+  // 直接使用后端发出的轮次（与活动日志一致）触发安全试跑；不提交订单。
   useEffect(() => {
-    setNextTrialAtMs(Date.now() + 15 * 60 * 1000);
-    const timer = window.setInterval(() => {
-      setNextTrialAtMs(Date.now() + 15 * 60 * 1000);
-      void testCheckout();
-    }, 15 * 60 * 1000);
-
-    return () => window.clearInterval(timer);
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<WatcherEvent>("watcher://event", ({ payload }) => {
+      if (payload.type !== "cycleComplete") return;
+      const cycle = payload.cycle;
+      if (cycle > 0 && cycle % trialEveryCyclesRef.current === 0 && lastAutoTrialCycle.current !== cycle) {
+        lastAutoTrialCycle.current = cycle;
+        void testCheckout();
+      }
+    }).then((removeListener) => {
+      if (active) unlisten = removeListener;
+      else removeListener();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -592,8 +614,6 @@ export default function App() {
   const secondsUntilNextCheck = ui.nextCheckAtMs
     ? Math.max(0, Math.ceil((ui.nextCheckAtMs - clockMs) / 1_000))
     : null;
-  const trialSecondsLeft = Math.max(0, Math.ceil((nextTrialAtMs - clockMs) / 1_000));
-  const trialCountdown = `${String(Math.floor(trialSecondsLeft / 60)).padStart(2, "0")}:${String(trialSecondsLeft % 60).padStart(2, "0")}`;
   const runningLabel =
     secondsUntilNextCheck === null || secondsUntilNextCheck === 0
       ? `查询中 · 完成后倒计时 ${ui.settings.intervalSeconds} 秒`
@@ -798,7 +818,6 @@ export default function App() {
                 />
                 <span className="hidden text-xs text-muted-foreground sm:inline">监控状态</span>
                 <span className="text-sm font-medium">{ui.running ? browserFailure !== null ? browserRunningLabel : runningLabel : "已暂停"}</span>
-                <span className="text-xs text-muted-foreground">试跑倒计时 {trialCountdown}</span>
               </div>
               {ui.running && ui.cooling && (
                 <Button
@@ -1417,6 +1436,26 @@ export default function App() {
                   <BellRing aria-hidden="true" /> 测试提醒与跳转
                 </Button>
               </CollapsiblePanel>
+
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/55 bg-background/30 px-4 py-3">
+                <Label htmlFor="trial-every-cycles" className="text-sm">每</Label>
+                <Input
+                  id="trial-every-cycles"
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="h-9 w-24 bg-background/45 tabular-nums"
+                  aria-label="自动试跑间隔轮数"
+                  value={trialEveryCycles}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (!Number.isSafeInteger(value) || value < 1) return;
+                    setTrialEveryCycles(value);
+                    try { window.localStorage.setItem("trialEveryCycles", String(value)); } catch { /* 存储不可用时仍可本次生效 */ }
+                  }}
+                />
+                <span className="text-sm">轮库存检查，自动试跑一次</span>
+              </div>
 
               <CheckoutSettings checkout={ui.settings.checkout} targets={ui.settings.targets} />
 
