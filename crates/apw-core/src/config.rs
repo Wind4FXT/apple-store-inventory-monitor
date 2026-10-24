@@ -81,10 +81,10 @@ impl<'de> Deserialize<'de> for OpenOnHit {
 /// 上游写死 500 毫秒一轮，即每个门店每秒两次请求。这个频率对一个公开的商品
 /// 查询接口来说过高，是触发风控的直接原因，也是上游 issue 里 503 / 541 反复
 /// 出现的背景。30 秒足够应付抢购，同时不会把自己送进黑名单。
-pub const DEFAULT_INTERVAL_SECONDS: u64 = 30;
+pub const DEFAULT_INTERVAL_SECONDS: u64 = 3;
 
 /// 允许设置的间隔下限（秒）。保留手动调快的余地，但不允许低到必然触发风控。
-pub const MIN_INTERVAL_SECONDS: u64 = 5;
+pub const MIN_INTERVAL_SECONDS: u64 = 1;
 
 /// 读取设置文件时接受的字节上限。
 ///
