@@ -113,7 +113,7 @@ function CheckoutLogin() {
   </div>;
 }
 
-export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; targets: Target[] }) {
+export function CheckoutSettings({ checkout, targets, trialEveryCycles, onTrialEveryCyclesChange }: { checkout: Checkout; targets: Target[]; trialEveryCycles: number; onTrialEveryCyclesChange: (value: number) => void }) {
   const products = monitoredProducts(targets);
   // 只监控一件时就是它；监控多件时以设置里选的为准，选的那件已不在列表里则视为没选。
   const chosen = products.length === 1
@@ -374,6 +374,24 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
             ? "先在下单浏览器中登录并留空购物袋。试跑会加购监控列表中的第一件中国大陆商品，停在查看订单页，不会提交订单；试跑失败保留页面供检查。"
             : "首次使用先打开下单浏览器，登录 Apple 账户、加入商品并手动走一次结账。试跑用「要下单的商品」和它第一条监控项的门店，不会提交订单。"}
         </p>
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/55 bg-background/30 px-4 py-3">
+                <Label htmlFor="trial-every-cycles" className="text-sm">每</Label>
+                <Input
+                  id="trial-every-cycles"
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="h-9 w-24 bg-background/45 tabular-nums"
+                  aria-label="自动试跑间隔轮数"
+                  value={trialEveryCycles}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (!Number.isSafeInteger(value) || value < 1) return;
+                    onTrialEveryCyclesChange(value);
+                  }}
+                />
+                <span className="text-sm">轮库存检查，自动试跑一次</span>
+              </div>
       </div>
     </CollapsiblePanel>
   );
