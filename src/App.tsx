@@ -92,6 +92,7 @@ import {
   setTargets,
   startWatching,
   stopWatching,
+  testCheckout,
   testNotify,
   watcherStore,
 } from "@/lib/store";
@@ -483,6 +484,15 @@ export default function App() {
 
   useEffect(() => {
     void connect();
+  }, []);
+
+  // 程序运行期间每 15 分钟自动试跑一次；只调用安全试跑，不会提交订单。
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void testCheckout();
+    }, 15 * 60 * 1000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
