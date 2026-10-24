@@ -1437,27 +1437,10 @@ export default function App() {
                 </Button>
               </CollapsiblePanel>
 
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/55 bg-background/30 px-4 py-3">
-                <Label htmlFor="trial-every-cycles" className="text-sm">每</Label>
-                <Input
-                  id="trial-every-cycles"
-                  type="number"
-                  min={1}
-                  step={1}
-                  className="h-9 w-24 bg-background/45 tabular-nums"
-                  aria-label="自动试跑间隔轮数"
-                  value={trialEveryCycles}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    if (!Number.isSafeInteger(value) || value < 1) return;
-                    setTrialEveryCycles(value);
-                    try { window.localStorage.setItem("trialEveryCycles", String(value)); } catch { /* 存储不可用时仍可本次生效 */ }
-                  }}
-                />
-                <span className="text-sm">轮库存检查，自动试跑一次</span>
-              </div>
-
-              <CheckoutSettings checkout={ui.settings.checkout} targets={ui.settings.targets} />
+              <CheckoutSettings checkout={ui.settings.checkout} targets={ui.settings.targets} trialEveryCycles={trialEveryCycles} onTrialEveryCyclesChange={(value) => {
+                setTrialEveryCycles(value);
+                try { window.localStorage.setItem("trialEveryCycles", String(value)); } catch { /* 存储不可用时仍可本次生效 */ }
+              }} />
 
               <NetworkSettings network={ui.settings.network} running={ui.running} route={ui.route} />
 
